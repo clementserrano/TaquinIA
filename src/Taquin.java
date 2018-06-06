@@ -91,7 +91,7 @@ public class Taquin extends Application {
                 agents.stream().forEach(agent -> {
                     try {
                         Thread.sleep(1000);
-                        new Thread(agent).start();
+                        agent.start();
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }

@@ -17,6 +17,8 @@ public class Agent extends Thread {
     // Déplacements : garder un trace des déplacements pour éviter un blocage
     private List<Position> deplacements;
 
+    private List<Position> freePos;
+
     // Grille static, gérer la concurrence (2 individus essaient de modifier simultanément une case
     public static Grille grille = new Grille();
 
@@ -29,6 +31,7 @@ public class Agent extends Thread {
         this.pos = pos;
         this.posEnd = posEnd;
         this.deplacements = new ArrayList<>();
+        this.freePos = new ArrayList<>();
     }
 
     // ----- Comportement -----
@@ -37,7 +40,6 @@ public class Agent extends Thread {
     public void run() {
         // while : tant que le puzzle non reconstitué do
         while (!grille.estReconstitue()) {
-            List<Position> freePos = new ArrayList<>();
             boolean ok = false;
             Position newPos = null;
             while (!ok) {
@@ -68,7 +70,8 @@ public class Agent extends Thread {
                 // meilleure position
                 if (pos.equals(posEnd) && !freePos.contains(pos)) {
                     newPos = null;
-                } else if (posEnd.getY() == 0 || posEnd.getY() == 0 || grille.isAllSideTermine()) {
+                } else if ((posEnd.getY() == 0 || posEnd.getY() == 0 || grille.isAllSideTermine())
+                        && (deplacements.size() > 0 && !freePos.contains(deplacements.get(deplacements.size() - 1)))) {
                     newPos = meilleurePosition(freePos);
                 } else {
                     List<Position> poss = grille.getAdjacents(pos);
@@ -124,18 +127,20 @@ public class Agent extends Thread {
 
         if (positions.size() == 0) return null;
 
-        Position best = positions.get(0);
+        List<Position> best = new ArrayList<>();
         int distance = posEnd.distance(positions.get(0));
 
         for (Position adjPos : positions) {
             int adjDistance = posEnd.distance(adjPos);
-            if (adjDistance < distance) {
-                best = adjPos;
+            if (adjDistance <= distance) {
+                best.add(adjPos);
                 distance = adjDistance;
             }
         }
 
-        return best;
+        Random r = new Random();
+
+        return best.get(r.nextInt(best.size()));
     }
 
     private void sendToEveryone(Position newPos, Message.Performatif performatif, Message.Action action) {
