@@ -1,11 +1,13 @@
 public class Message {
 
     enum Performatif {
-        REQUEST
+        REQUEST,
+        INFO
     }
 
     enum Action {
-        MOVE
+        MOVE,
+        MERCI
     }
 
     // émetteur
@@ -22,14 +24,6 @@ public class Message {
 
     // Position à libérer : ...
     private Position pos;
-
-    public Message(Agent emetteur, Agent destinataire, Performatif performatif, Action action, Position pos) {
-        this.emetteur = emetteur;
-        this.destinataire = destinataire;
-        this.performatif = performatif;
-        this.action = action;
-        this.pos = pos;
-    }
 
     public Agent getEmetteur() {
         return emetteur;

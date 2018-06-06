@@ -21,6 +21,8 @@ public class Taquin extends Application {
 
     private static Label[][] grid;
 
+    private static List<Agent> agents;
+
     @Override
     public void start(Stage primaryStage) {
         try {
@@ -75,17 +77,25 @@ public class Taquin extends Application {
         Task task = new Task<Void>() {
             @Override
             public Void call() {
-                List<Agent> agents = new ArrayList<>();
+                agents = new ArrayList<>();
                 for (int i = 0; i < grille.length; i++) {
                     for (int j = 0; j < grille[0].length; j++) {
                         if (!grille[i][j].equals("")) {
-                            agents.add(new Agent(grille[i][j], new Position(i, j), Grille.findTerminale(grille[i][j])));
+                            Agent agent = new Agent(grille[i][j], new Position(i, j), Grille.findTerminale(grille[i][j]));
+                            agents.add(agent);
                         }
                     }
                 }
 
                 // Run agents
-                agents.stream().forEach(agent -> new Thread(agent).start());
+                agents.stream().forEach(agent -> {
+                    try {
+                        Thread.sleep(1000);
+                        new Thread(agent).start();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                });
 
                 return null;
             }
@@ -98,6 +108,15 @@ public class Taquin extends Application {
             grid[prev.getX()][prev.getY()].setText("");
             grid[next.getX()][next.getY()].setText(nom);
         });
+    }
+
+    public static Agent findAgent(String agentDestinataire) {
+        for (Agent agent : agents) {
+            if(agent.getName().equals(agentDestinataire)){
+                return agent;
+            }
+        }
+        return null;
     }
 
     public static void main(String[] args) {
