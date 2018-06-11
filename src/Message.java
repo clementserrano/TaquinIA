@@ -49,6 +49,11 @@ public class Message {
         this.performatif = performatif;
     }
 
+    @Override
+    public String toString() {
+        return "{"  + emetteur + " : " + pos + '}';
+    }
+
     public Action getAction() {
         return action;
     }

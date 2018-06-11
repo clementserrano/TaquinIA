@@ -5,6 +5,8 @@ import java.util.Random;
 public class Agent extends Thread {
     // ----- Connaissances -----
 
+    private static final int timeToSleep = 0;
+
     // numero agent
     private String nom;
 
@@ -13,9 +15,6 @@ public class Agent extends Thread {
 
     // Position terminale
     private Position posEnd;
-
-    // Déplacements : garder un trace des déplacements pour éviter un blocage
-    private List<Position> deplacements;
 
     private List<Position> freePos;
 
@@ -26,11 +25,12 @@ public class Agent extends Thread {
     // structure de communication
     public static Communication communication = new Communication();
 
+    private static int border = 0;
+
     public Agent(String nom, Position pos, Position posEnd) {
         this.nom = nom;
         this.pos = pos;
         this.posEnd = posEnd;
-        this.deplacements = new ArrayList<>();
         this.freePos = new ArrayList<>();
     }
 
@@ -38,92 +38,74 @@ public class Agent extends Thread {
 
     // Run, cerveau de l'agent
     public void run() {
-        // while : tant que le puzzle non reconstitué do
-        while (!grille.estReconstitue()) {
-            boolean ok = false;
-            Position newPos = null;
-            while (!ok) {
+        try {
+            // while : tant que le puzzle non reconstitué do
+            while (!grille.estReconstitue()) {
+                Position newPos = null;
                 // traiter ses messages, même si en position terminale
-                List<Message> listMessages = communication.get(nom);
-                if (listMessages != null) {
+                List<Message> listMessages = communication.getAndClear(nom);
+                if (listMessages != null && listMessages.size() > 0) {
                     for (Message message : listMessages) {
-                        switch (message.getPerformatif()) {
-                            case REQUEST:
-                                switch (message.getAction()) {
-                                    case MOVE:
-                                        freePos.add(message.getPos());
-                                        break;
-                                }
-                                break;
-                            case INFO:
-                                switch (message.getAction()) {
-                                    case MERCI:
-                                        freePos.remove(message.getPos());
-                                        break;
-                                }
-                                break;
+                        if (message != null) {
+                            switch (message.getPerformatif()) {
+                                case REQUEST:
+                                    switch (message.getAction()) {
+                                        case MOVE:
+                                            freePos.add(message.getPos());
+                                            break;
+                                    }
+                                    break;
+                                case INFO:
+                                    switch (message.getAction()) {
+                                        case MERCI:
+                                            freePos.remove(message.getPos());
+                                            break;
+                                    }
+                                    break;
+                            }
                         }
-                        listMessages.remove(message);
                     }
-                }
-
-                // meilleure position
-                if (pos.equals(posEnd) && !freePos.contains(pos)) {
-                    newPos = null;
-                } else if ((posEnd.getY() == 0 || posEnd.getY() == 0 || grille.isAllSideTermine())
-                        && (deplacements.size() > 0 && !freePos.contains(deplacements.get(deplacements.size() - 1)))) {
-                    newPos = meilleurePosition(freePos);
-                } else {
-                    List<Position> poss = grille.getAdjacents(pos);
-                    if (poss.size() > 0) {
-                        newPos = poss.get(0);
-                    } else {
-                        Position gauche = new Position(pos.getX(), pos.getY() - 1);
-                        Position droite = new Position(pos.getX(), pos.getY() + 1);
-                        Position haut = new Position(pos.getX() - 1, pos.getY());
-                        Position bas = new Position(pos.getX() + 1, pos.getY());
-                        List<Position> randomPos = new ArrayList<>();
-                        if (!grille.get(gauche).equals("null")) randomPos.add(gauche);
-                        if (!grille.get(droite).equals("null")) randomPos.add(droite);
-                        if (!grille.get(haut).equals("null")) randomPos.add(haut);
-                        if (!grille.get(bas).equals("null")) randomPos.add(bas);
-                        Random r = new Random();
-                        newPos = randomPos.get(r.nextInt(randomPos.size()));
-                    }
-                }
-
-                if (newPos != null) {
-                    sendToEveryone(newPos, Message.Performatif.REQUEST, Message.Action.MOVE);
                 }
 
                 // décider la stratégie à adopter
+                if (isBorder() && !isTermine()) {
+                    newPos = meilleurePosition();
+                }
+
+                if (freePos.contains(pos) && !(isTermine() && isBorderEx())) {
+                    List<Position> poss = grille.getAdjacents(pos, true);
+                    Random r = new Random();
+                    if (poss.size() > 0) {
+                        newPos = poss.get(r.nextInt(poss.size()));
+                        //newPos = poss.get(0);
+                    } else {
+                        poss = grille.getAdjacents(pos, false);
+                        newPos = poss.get(r.nextInt(poss.size()));
+                        //newPos = poss.get(0);
+                    }
+                }
+
                 if (newPos != null) {
-                    ok = grille.update(pos, newPos, nom);
-                } else {
-                    ok = true;
+                    if (grille.update(pos, newPos, nom)) {
+                        sendToEveryone(newPos, Message.Performatif.INFO, Message.Action.MERCI);
+                        pos = newPos;
+                        updateBorder();
+                        Thread.sleep(timeToSleep);
+                    } else {
+                        sendToEveryone(newPos, Message.Performatif.REQUEST, Message.Action.MOVE);
+                    }
                 }
             }
-            if (newPos != null) {
-                deplacements.add(newPos);
-                pos = newPos;
-                sendToEveryone(newPos, Message.Performatif.INFO, Message.Action.MERCI);
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
+            System.out.println(nom + " a fini !");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
-        System.out.println(nom + " a fini !");
     }
 
     // fonction meilleure position, cherche à satisfraire son but
     // en premier temps, rapprochement brut
-    public synchronized Position meilleurePosition(List<Position> freePos) {
-        List<Position> positions = grille.getAdjacents(pos);
-        for (Position pos : freePos) {
-            positions.remove(pos);
-        }
+    private synchronized Position meilleurePosition() {
+        List<Position> positions = grille.getAdjacents(pos, false);
 
         if (positions.size() == 0) return null;
 
@@ -151,7 +133,60 @@ public class Agent extends Thread {
             newMessage.setPerformatif(performatif);
             newMessage.setAction(action);
             newMessage.setPos(newPos);
-            communication.get(agentDestinataire).add(newMessage);
+            boolean ok = false;
+            while(!ok){
+                try{
+                    communication.get(agentDestinataire).add(newMessage);
+                    ok = true;
+                }catch (ArrayIndexOutOfBoundsException e){
+                    ok = false;
+                }
+            }
         }
+    }
+
+    public boolean isBorder() {
+        return posEnd.getX() <= border || posEnd.getX() >= grille.get()[0].length - 1 - border ||
+                posEnd.getY() <= border || posEnd.getY() >= grille.get().length - 1 - border;
+    }
+
+    public boolean isBorderEx() {
+        return posEnd.getX() < border || posEnd.getX() > grille.get()[0].length - 1 - border ||
+                posEnd.getY() < border || posEnd.getY() > grille.get().length - 1 - border;
+    }
+
+    public boolean isTermine() {
+        return pos.equals(posEnd);
+    }
+
+    private synchronized void updateBorder() {
+        if (grille.isBorderTermine()) {
+            Agent.setBorder(Agent.getBorder() + 1);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return nom;
+    }
+
+    public String getNom() {
+        return nom;
+    }
+
+    public static int getBorder() {
+        return border;
+    }
+
+    public static void setBorder(int border) {
+        Agent.border = border;
+    }
+
+    public static Communication getCommunication() {
+        return communication;
+    }
+
+    public static Grille getGrille() {
+        return grille;
     }
 }

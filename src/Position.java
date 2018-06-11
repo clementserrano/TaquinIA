@@ -23,14 +23,18 @@ public class Position {
         this.y = y;
     }
 
-    public int distance(Position pos){
-        return Math.abs(pos.getX() - x)+ Math.abs(pos.getY()-y);
+    public int distance(Position pos) {
+        return Math.abs(pos.getX() - x) + Math.abs(pos.getY() - y);
     }
 
     @Override
     public boolean equals(Object obj) {
         Position pos = (Position) obj;
-        if(pos.getX() == x && pos.getY() == y) return true;
-        return false;
+        return (pos.getX() == x && pos.getY() == y);
+    }
+
+    @Override
+    public String toString() {
+        return "{" + x + ", " + y + '}';
     }
 }
